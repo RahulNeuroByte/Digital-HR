@@ -23,16 +23,20 @@ __pycache__/
 node_modules/
 dist/
 build/
+package.json
+pnpm-lock.yaml
 
 # Logs & temp files
 *.log
 *.tmp
 *.temp
 
-# IDE & system metadata
+# IDE & AI assistant metadata
 .vscode/
 .idea/
 .gemini/
+.agents/
+skills-lock.json
 .DS_Store
 Thumbs.db
 
@@ -40,3 +44,10 @@ Thumbs.db
 coverage/
 htmlcov/
 .coverage
+
+# Internal dev notes & root image duplicates
+COMPLETE_SETUP.md
+TASKS.md
+BRAIN.md
+Coforge-logo-Coral-Blue.webp
+utils/supabase/
