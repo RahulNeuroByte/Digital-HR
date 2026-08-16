@@ -142,90 +142,62 @@ def render_login_page() -> None:
         )
 
         sp_client = db_manager.get_supabase_client()
-
         is_configured = bool(
             sp_client
             and settings.supabase_url
             and settings.supabase_anon_key
         )
 
+        google_oauth_url = None
+        if is_configured:
+            try:
+                redirect_url = _get_oauth_redirect_url()
+                oauth_res = sp_client.auth.sign_in_with_oauth(
+                    {
+                        "provider": "google",
+                        "options": {
+                            "redirect_to": redirect_url,
+                            "query_params": {
+                                "prompt": "select_account"
+                            },
+                        },
+                    }
+                )
+                if oauth_res and hasattr(oauth_res, "url"):
+                    google_oauth_url = oauth_res.url
+                    # Preserve PKCE verifier if storage is accessible
+                    try:
+                        verifier = sp_client.auth._storage.get_item(
+                            "supabase.auth.token-code-verifier"
+                        )
+                        if verifier:
+                            st.session_state["pkce_code_verifier"] = verifier
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
         # ── Google Button ────────────────────────────────────────────────────
-        if st.button(
-            "🌐 Continue with Google",
-            use_container_width=True,
-            type="primary",
-        ):
-
-            if not is_configured:
-
+        if google_oauth_url:
+            st.link_button(
+                "🌐 Continue with Google",
+                google_oauth_url,
+                use_container_width=True,
+                type="primary",
+            )
+        else:
+            if st.button(
+                "🌐 Continue with Google",
+                use_container_width=True,
+                type="primary",
+            ):
                 st.error(
                     "⚠️ Real Google OAuth authentication requires "
                     "SUPABASE_URL and SUPABASE_ANON_KEY in your .env "
                     "file with Google Provider enabled in the Supabase "
-                    "Dashboard. Mock logins are disabled."
+                    "Dashboard."
                 )
-
-            else:
-
-                redirect_url = _get_oauth_redirect_url()
-
-                try:
-
-                    oauth_res = sp_client.auth.sign_in_with_oauth(
-                        {
-                            "provider": "google",
-                            "options": {
-                                "redirect_to": redirect_url,
-                                "query_params": {
-                                    "prompt": "select_account"
-                                },
-                            },
-                        }
-                    )
-
-                    # ---------------------------------------------------------
-                    # Preserve PKCE verifier
-                    # ---------------------------------------------------------
-
-                    try:
-
-                        verifier = (
-                            sp_client.auth._storage.get_item(
-                                "supabase.auth.token-code-verifier"
-                            )
-                        )
-
-                        if verifier:
-                            st.session_state[
-                                "pkce_code_verifier"
-                            ] = verifier
-
-                    except Exception:
-                        pass
-
-                    # ---------------------------------------------------------
-                    # Redirect browser to Google
-                    # ---------------------------------------------------------
-
-                    target_url = oauth_res.url
-                    st.components.v1.html(
-                        f"<script>window.top.location.href = '{target_url}';</script>",
-                        height=0
-                    )
-                    st.markdown(
-                        f'<div style="text-align: center; margin-top: 10px;">'
-                        f'<a href="{target_url}" target="_top" style="color: #2563EB; font-weight: 600; font-size: 0.95rem; text-decoration: underline;">'
-                        f'Connecting to Google OAuth... Click here if not redirected automatically.</a></div>',
-                        unsafe_allow_html=True
-                    )
-
-                    st.stop()
-
-                except Exception as exc:
-
-                    st.error(
-                        f"Failed to initiate Google OAuth: {exc}"
-                    )
+                st.stop()
 
         # ── Divider ──────────────────────────────────────────────────────────
         st.markdown(
