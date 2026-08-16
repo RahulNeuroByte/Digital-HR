@@ -3,7 +3,23 @@ Digital HR - Streamlit entry point.
 
 Enterprise AI Assistant UI with policy-aware grounded RAG pipeline.
 """
-from __future__ import annotations
+# Windows static file path wildcard safety patch for Starlette / Streamlit
+try:
+    import os
+    import starlette.staticfiles
+
+    _orig_lookup_path = starlette.staticfiles.StaticFiles.lookup_path
+
+    def _safe_lookup_path(self, path: str):
+        clean_path = path.replace("*", "").replace("?", "").strip()
+        try:
+            return _orig_lookup_path(self, clean_path)
+        except (OSError, ValueError):
+            return _orig_lookup_path(self, "")
+
+    starlette.staticfiles.StaticFiles.lookup_path = _safe_lookup_path
+except Exception:
+    pass
 
 import streamlit as st
 
