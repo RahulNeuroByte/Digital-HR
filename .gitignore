@@ -1,0 +1,42 @@
+﻿# Environment variables & secrets
+.env
+.env.local
+.env.development
+.env.production
+!.env.example
+
+# Python virtual environment
+venv/
+.venv/
+env/
+ENV/
+
+# Python byte-code / caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node dependencies & build artifacts
+node_modules/
+dist/
+build/
+
+# Logs & temp files
+*.log
+*.tmp
+*.temp
+
+# IDE & system metadata
+.vscode/
+.idea/
+.gemini/
+.DS_Store
+Thumbs.db
+
+# Coverage & test output
+coverage/
+htmlcov/
+.coverage
