@@ -85,27 +85,28 @@ def _get_oauth_redirect_url() -> str:
         http://localhost:8501/
 
     Streamlit Cloud:
-        APP_URL from Streamlit Secrets / environment variables.
-
-    No hardcoded Streamlit deployment URL is required here.
+        APP_URL from Streamlit Secrets or environment variables.
     """
-
-    # First try the existing settings object.
+    app_url = ""
     try:
-        redirect_url = getattr(settings, "app_url", "")
+        if hasattr(st, "secrets") and "APP_URL" in st.secrets:
+            app_url = str(st.secrets["APP_URL"]).strip()
     except Exception:
-        redirect_url = ""
+        pass
 
-    # If settings.py does not currently expose app_url,
-    # read APP_URL directly from the environment.
-    if not redirect_url:
-        redirect_url = os.getenv("APP_URL", "").strip()
+    if not app_url:
+        app_url = os.getenv("APP_URL", "").strip()
 
-    # Local development fallback.
-    if not redirect_url:
-        redirect_url = "http://localhost:8501/"
+    if not app_url:
+        try:
+            app_url = getattr(settings, "app_url", "")
+        except Exception:
+            app_url = ""
 
-    return redirect_url.rstrip("/") + "/"
+    if not app_url:
+        app_url = "http://localhost:8501/"
+
+    return app_url.rstrip("/") + "/"
 
 
 def render_login_page() -> None:
@@ -118,12 +119,9 @@ def render_login_page() -> None:
         # ── Card: branding + title + tagline ────────────────────────────────
         st.markdown(
             """
-            <div style='padding: 28px 24px 20px; background-color: #FFFFFF;
-                        border: 1px solid #DCE2E8; border-radius: 16px;
-                        box-shadow: 0 10px 30px rgba(16,28,44,0.06);
-                        text-align: center; margin-bottom: 20px;'>
-                <div style='font-size: 0.88rem; font-weight: 700; color: #667085;
-                            margin-bottom: 6px; letter-spacing: 0.5px;'>
+            <div style='text-align: center; margin-bottom: 25px;'>
+                <div style='font-size: 0.95rem; font-weight: 700; color: #667085;
+                            letter-spacing: 0.6px; margin-bottom: 4px;'>
                     <span style='color: #FF5B36; font-size: 1.08rem;'>Co</span><span
                           style='color: #172033; font-size: 1.08rem;'>forge</span>
                     &nbsp;•&nbsp; HR-India Policy Desk
@@ -169,16 +167,6 @@ def render_login_page() -> None:
 
             else:
 
-                # IMPORTANT:
-                # Previously this was hardcoded to localhost:
-                #
-                # redirect_url = "http://localhost:8501/"
-                #
-                # That works locally but causes the deployed Streamlit
-                # application to redirect to localhost.
-                #
-                # Now the URL is selected according to the environment.
-
                 redirect_url = _get_oauth_redirect_url()
 
                 try:
@@ -213,23 +201,22 @@ def render_login_page() -> None:
                             ] = verifier
 
                     except Exception:
-                        # Keep the existing OAuth flow working even if
-                        # the installed Supabase client does not expose
-                        # its internal storage object.
                         pass
 
                     # ---------------------------------------------------------
                     # Redirect browser to Google
                     # ---------------------------------------------------------
 
+                    target_url = oauth_res.url
+                    st.components.v1.html(
+                        f"<script>window.top.location.href = '{target_url}';</script>",
+                        height=0
+                    )
                     st.markdown(
-                        f"""
-                        <meta
-                            http-equiv="refresh"
-                            content="0; url={oauth_res.url}"
-                        >
-                        """,
-                        unsafe_allow_html=True,
+                        f'<div style="text-align: center; margin-top: 10px;">'
+                        f'<a href="{target_url}" target="_top" style="color: #2563EB; font-weight: 600; font-size: 0.95rem; text-decoration: underline;">'
+                        f'Connecting to Google OAuth... Click here if not redirected automatically.</a></div>',
+                        unsafe_allow_html=True
                     )
 
                     st.stop()
