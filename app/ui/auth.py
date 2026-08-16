@@ -8,11 +8,14 @@ on Streamlit Cloud.
 from __future__ import annotations
 
 import os
+import logging
 
 import streamlit as st
 from app.config.settings import settings
 from app.db import db_manager
 from app.ui.state import create_new_chat
+
+logger = logging.getLogger(__name__)
 
 
 # Subtle constellation background (coral/teal/navy nodes)
@@ -132,26 +135,17 @@ def render_login_page() -> None:
     with col2:
         # ── Card: branding + title + tagline ────────────────────────────────
         st.markdown(
-            """
-            <div style='text-align: center; margin-bottom: 25px;'>
-                <div style='font-size: 0.95rem; font-weight: 700; color: #667085;
-                            letter-spacing: 0.6px; margin-bottom: 4px;'>
-                    <span style='color: #FF5B36; font-size: 1.08rem;'>Co</span><span
-                          style='color: #172033; font-size: 1.08rem;'>forge</span>
-                    &nbsp;•&nbsp; HR-India Policy Desk
-                </div>
-
-                <div style='color: #172033; margin: 4px 0 0; font-size: 2.2rem;
-                            font-weight: 700; line-height: 1.2;'>
-                    Digital-HR
-                </div>
-
-                <p style='color: #667085; font-size: 0.98rem; margin-top: 6px;
-                          margin-bottom: 0; font-weight: 500;'>
-                    Ask anything about Coforge HR-India policies
-                </p>
-            </div>
-            """,
+            """<div style='padding: 28px 24px 20px; background-color: #FFFFFF; border: 1px solid #DCE2E8; border-radius: 16px; box-shadow: 0 10px 30px rgba(16,28,44,0.06); text-align: center; margin-bottom: 20px;'>
+<div style='font-size: 0.88rem; font-weight: 700; color: #667085; margin-bottom: 6px; letter-spacing: 0.5px;'>
+<span style='color: #FF5B36; font-size: 1.08rem;'>Co</span><span style='color: #172033; font-size: 1.08rem;'>forge</span> &nbsp;•&nbsp; HR-India Policy Desk
+</div>
+<div style='color: #172033; margin: 4px 0 0; font-size: 2.2rem; font-weight: 700; line-height: 1.2;'>
+Digital-HR
+</div>
+<p style='color: #667085; font-size: 0.98rem; margin-top: 6px; margin-bottom: 0; font-weight: 500;'>
+Ask anything about Coforge HR-India policies
+</p>
+</div>""",
             unsafe_allow_html=True,
         )
 
@@ -179,7 +173,6 @@ def render_login_page() -> None:
                 )
                 if oauth_res and hasattr(oauth_res, "url"):
                     google_oauth_url = oauth_res.url
-                    # Preserve PKCE verifier if storage is accessible
                     try:
                         verifier = sp_client.auth._storage.get_item(
                             "supabase.auth.token-code-verifier"
@@ -188,8 +181,8 @@ def render_login_page() -> None:
                             st.session_state["pkce_code_verifier"] = verifier
                     except Exception:
                         pass
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Supabase OAuth pre-fetch warning: %s", exc)
 
         # ── Google Button ────────────────────────────────────────────────────
         if google_oauth_url:
@@ -205,13 +198,15 @@ def render_login_page() -> None:
                 use_container_width=True,
                 type="primary",
             ):
-                st.error(
-                    "⚠️ Real Google OAuth authentication requires "
-                    "SUPABASE_URL and SUPABASE_ANON_KEY in your .env "
-                    "file with Google Provider enabled in the Supabase "
-                    "Dashboard."
+                st.warning(
+                    "⚠️ Google Sign-In is not enabled yet in your Supabase Dashboard.\n\n"
+                    "👉 **To enable real Google sign-in**:\n"
+                    "1. Open [Supabase Dashboard](https://supabase.com/dashboard) → **Authentication** → **Providers** → Enable **Google**.\n"
+                    "2. Enter your Google OAuth `Client ID` & `Client Secret`.\n"
+                    "3. Add `http://localhost:8501/` to **Redirect URLs**.\n\n"
+                    "💡 *Click **Continue as Guest** below to use the app immediately!*"
                 )
-                st.stop()
+
 
         # ── Divider ──────────────────────────────────────────────────────────
         st.markdown(
