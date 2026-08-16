@@ -112,6 +112,20 @@ def _get_oauth_redirect_url() -> str:
 def render_login_page() -> None:
     st.markdown(_CSS, unsafe_allow_html=True)
 
+    # Check for incoming Supabase OAuth error in query params
+    error = st.query_params.get("error")
+    error_desc = st.query_params.get("error_description") or st.query_params.get("error_code")
+    if error:
+        err_msg = str(error_desc or error).replace("+", " ")
+        st.warning(
+            f"⚠️ **Google Sign-In Notice**: Supabase returned an error: `{err_msg}`.\n\n"
+            "**To fix Google Sign-In in 1 minute**:\n"
+            "1. Open your [Supabase Dashboard](https://supabase.com/dashboard) → **Authentication** → **Providers** → Enable **Google**.\n"
+            "2. Enter your Google OAuth `Client ID` and `Client Secret` in Supabase.\n"
+            "3. Add `http://localhost:8501/` under **Authentication** → **URL Configuration** → **Redirect URLs**.\n\n"
+            "👉 *Tip: Click **Continue as Guest** below to use Siya immediately without Google login!*"
+        )
+
     st.markdown("<br><br>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1, 2.2, 1])
 
