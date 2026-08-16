@@ -82,7 +82,7 @@ div[data-testid="stButton"] > button[kind="secondary"]:hover {{
 
 def _get_oauth_redirect_url() -> str:
     """
-    Return the correct application URL for the current environment.
+    Return the clean application URL for the current environment without wildcards.
 
     Local:
         http://localhost:8501/
@@ -109,7 +109,10 @@ def _get_oauth_redirect_url() -> str:
     if not app_url:
         app_url = "http://localhost:8501/"
 
-    return app_url.rstrip("/") + "/"
+    # Strip any asterisks or invalid path characters
+    clean_url = app_url.replace("*", "").rstrip("/") + "/"
+    return clean_url
+
 
 
 def render_login_page() -> None:
