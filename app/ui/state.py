@@ -58,15 +58,16 @@ def init_session_state() -> None:
         code = str(code).strip()
 
     oauth_code_detected = bool(code)
+    has_query_error = bool(st.query_params.get("error"))
 
     user = None
     session = None
 
     # Step 1: Existing Active Supabase Session Check (restores valid session across reruns/refreshes)
-    if sp_client and not st.session_state.get("authenticated", False):
+    if sp_client:
         try:
             session = sp_client.auth.get_session()
-            if session and session.user:
+            if session and hasattr(session, "user") and session.user:
                 user = session.user
         except Exception as exc:
             logger.debug("No existing session recovered: %s", exc)
@@ -95,7 +96,14 @@ def init_session_state() -> None:
                     pass
 
         except Exception as exc:
-            logger.error("Failed to exchange PKCE OAuth code for session: %s", exc)
+            logger.warning("Failed to exchange PKCE OAuth code for session (code may already be used): %s", exc)
+            # Fallback: Check if session was already established on Supabase backend
+            try:
+                session = sp_client.auth.get_session()
+                if session and hasattr(session, "user") and session.user:
+                    user = session.user
+            except Exception:
+                pass
 
     code_exchange_success = bool(user)
 
@@ -136,9 +144,10 @@ def init_session_state() -> None:
         st.session_state.current_view = "chat"
 
         # Step 4: Clear OAuth query parameters ONLY AFTER session state is stored & committed
-        if oauth_code_detected:
+        if oauth_code_detected or has_query_error:
             st.query_params.clear()
             st.rerun()
+
     else:
         # Requirement 12 Debug Logging (Safe non-secret boolean metrics)
         logger.info("OAuth code detected: %s", oauth_code_detected)
