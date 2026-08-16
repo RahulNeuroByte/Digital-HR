@@ -40,17 +40,24 @@ POLICY_EXPLORER_QUESTIONS = [
     ("IT Security Policy", "What are the guidelines for handling company laptop and IT assets?"),
     ("PIP Policy", "What is the PIP process and evaluation duration?"),
     ("Maternity Leave Policy", "What is the maternity leave entitlement in India?"),
+    ("Paternity Leave Policy", "What is the paternity leave duration and eligibility criteria?"),
+    ("Bereavement Leave Policy", "How many days of bereavement leave are granted for immediate family?"),
+    ("Relocation Policy", "What relocation expenses and initial accommodation are covered?"),
+    ("Performance Appraisal Policy", "What is the annual performance review cycle and rating scale?"),
+    ("Hybrid Work Policy", "What is the mandatory office attendance policy per week?"),
+    ("Gratuity Policy", "What is the minimum service requirement to claim gratuity?"),
 ]
 
 
-def _get_thread_suggested_questions(thread_id: str) -> list[tuple[str, str]]:
-    """Return 4 candidate policy questions for the thread using zero-latency local random sampling."""
+def _get_thread_suggested_questions(thread_id: str, force_refresh: bool = False) -> list[tuple[str, str]]:
+    """Return 4 dynamically randomized candidate policy questions for the thread."""
     cache_key = f"explore_questions_{thread_id}"
-    if cache_key not in st.session_state:
+    if force_refresh or cache_key not in st.session_state:
         st.session_state[cache_key] = random.sample(
             POLICY_EXPLORER_QUESTIONS, min(4, len(POLICY_EXPLORER_QUESTIONS))
         )
     return st.session_state[cache_key]
+
 
 
 def _render_source_ux(answer: ChatAnswer, msg_idx: int) -> None:
@@ -199,33 +206,38 @@ def render_chat() -> None:
             unsafe_allow_html=True,
         )
 
-        st.markdown("<h5 style='color: #172033; font-weight: 650; margin-bottom: 12px;'>Explore HR Policies</h5>", unsafe_allow_html=True)
+        col_hdr1, col_hdr2 = st.columns([5, 1])
+        with col_hdr1:
+            st.markdown("<div style='color: #172033; font-size: 1.15rem; font-weight: 700; margin-bottom: 10px;'>Explore HR Policies</div>", unsafe_allow_html=True)
+        with col_hdr2:
+            if st.button("🔄 Shuffle", key=f"shuffle_q_{active_id}", help="Randomize sample policy questions"):
+                _get_thread_suggested_questions(active_id, force_refresh=True)
+                st.rerun()
 
         candidate_questions = _get_thread_suggested_questions(active_id)
         c1, c2 = st.columns(2)
-        quick_query = None
 
         with c1:
             cat1, q1 = candidate_questions[0]
             if st.button(f"🛡️ {q1}", key=f"exp_btn_0_{active_id}", use_container_width=True, help=cat1):
-                quick_query = q1
+                st.session_state["pending_sample_query"] = q1
+                st.rerun()
 
             cat2, q2 = candidate_questions[1]
             if st.button(f"🛡️ {q2}", key=f"exp_btn_1_{active_id}", use_container_width=True, help=cat2):
-                quick_query = q2
+                st.session_state["pending_sample_query"] = q2
+                st.rerun()
 
         with c2:
             cat3, q3 = candidate_questions[2]
             if st.button(f"🛡️ {q3}", key=f"exp_btn_2_{active_id}", use_container_width=True, help=cat3):
-                quick_query = q3
+                st.session_state["pending_sample_query"] = q3
+                st.rerun()
 
             cat4, q4 = candidate_questions[3]
             if st.button(f"🛡️ {q4}", key=f"exp_btn_3_{active_id}", use_container_width=True, help=cat4):
-                quick_query = q4
-
-        question = quick_query
-    else:
-        question = None
+                st.session_state["pending_sample_query"] = q4
+                st.rerun()
 
     # Render existing conversation messages
     for idx, message in enumerate(messages):
@@ -235,14 +247,16 @@ def render_chat() -> None:
             else:
                 st.markdown(message["content"])
 
-    # Floating Chat Input Composer
+    # Check for pending sample question OR chat_input submission
+    pending_query = st.session_state.pop("pending_sample_query", None)
     input_text = st.chat_input("Chat with Siya about HR policies or anything else…")
-    if input_text:
-        question = input_text
+
+    question = pending_query or input_text
 
     if not question:
         st.caption("💡 *Tip: Mention a policy name (e.g. 'Leave Policy') to search that document directly.*")
         return
+
 
     # Update thread title locally if first question
     if not thread["messages"]:
