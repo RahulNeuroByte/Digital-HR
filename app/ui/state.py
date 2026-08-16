@@ -64,13 +64,15 @@ def init_session_state() -> None:
     session = None
 
     # Step 1: Existing Active Supabase Session Check (restores valid session across reruns/refreshes)
-    if sp_client:
+    already_authenticated = st.session_state.get("authenticated", False)
+    if sp_client and not already_authenticated and not st.session_state.get("is_guest", False):
         try:
             session = sp_client.auth.get_session()
             if session and hasattr(session, "user") and session.user:
                 user = session.user
         except Exception as exc:
             logger.debug("No existing session recovered: %s", exc)
+
 
     # Step 2: PKCE Authorization Code Exchange (?code=...)
     if sp_client and not user and code:

@@ -161,31 +161,37 @@ Ask anything about Coforge HR-India policies
 
         google_oauth_url = None
         if is_configured:
-            try:
-                redirect_url = _get_oauth_redirect_url()
-                oauth_res = sp_client.auth.sign_in_with_oauth(
-                    {
-                        "provider": "google",
-                        "options": {
-                            "redirect_to": redirect_url,
-                            "query_params": {
-                                "prompt": "select_account"
+            cache_key = "_cached_google_oauth_url"
+            if cache_key in st.session_state:
+                google_oauth_url = st.session_state[cache_key]
+            else:
+                try:
+                    redirect_url = _get_oauth_redirect_url()
+                    oauth_res = sp_client.auth.sign_in_with_oauth(
+                        {
+                            "provider": "google",
+                            "options": {
+                                "redirect_to": redirect_url,
+                                "query_params": {
+                                    "prompt": "select_account"
+                                },
                             },
-                        },
-                    }
-                )
-                if oauth_res and hasattr(oauth_res, "url"):
-                    google_oauth_url = oauth_res.url
-                    try:
-                        verifier = sp_client.auth._storage.get_item(
-                            "supabase.auth.token-code-verifier"
-                        )
-                        if verifier:
-                            st.session_state["pkce_code_verifier"] = verifier
-                    except Exception:
-                        pass
-            except Exception as exc:
-                logger.warning("Supabase OAuth pre-fetch warning: %s", exc)
+                        }
+                    )
+                    if oauth_res and hasattr(oauth_res, "url"):
+                        google_oauth_url = oauth_res.url
+                        st.session_state[cache_key] = google_oauth_url
+                        try:
+                            verifier = sp_client.auth._storage.get_item(
+                                "supabase.auth.token-code-verifier"
+                            )
+                            if verifier:
+                                st.session_state["pkce_code_verifier"] = verifier
+                        except Exception:
+                            pass
+                except Exception as exc:
+                    logger.warning("Supabase OAuth pre-fetch warning: %s", exc)
+
 
         # ── Google Button ────────────────────────────────────────────────────
         if google_oauth_url:
