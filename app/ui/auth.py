@@ -1,13 +1,19 @@
 """
 Authentication UI: Google OAuth + Guest Mode sign-in for Digital HR.
-Same layout as previous version — only the Google button color changed from red to blue.
+Same layout as previous version — only the Google OAuth redirect
+has been made environment-aware so it works both locally and
+on Streamlit Cloud.
 """
+
 from __future__ import annotations
+
+import os
 
 import streamlit as st
 from app.config.settings import settings
 from app.db import db_manager
 from app.ui.state import create_new_chat
+
 
 # Subtle constellation background (coral/teal/navy nodes)
 _BG_CSS = (
@@ -46,6 +52,7 @@ _BG_CSS = (
     "%3C/g%3E%3C/svg%3E"
 )
 
+
 _CSS = f"""
 <style>
 .stApp {{
@@ -62,11 +69,43 @@ div[data-testid="stButton"] > button[kind="secondary"] {{
     color: #374151 !important;
     border: 1px solid #D1D5DB !important;
 }}
+
 div[data-testid="stButton"] > button[kind="secondary"]:hover {{
     background-color: #F9FAFB !important;
 }}
 </style>
 """
+
+
+def _get_oauth_redirect_url() -> str:
+    """
+    Return the correct application URL for the current environment.
+
+    Local:
+        http://localhost:8501/
+
+    Streamlit Cloud:
+        APP_URL from Streamlit Secrets / environment variables.
+
+    No hardcoded Streamlit deployment URL is required here.
+    """
+
+    # First try the existing settings object.
+    try:
+        redirect_url = getattr(settings, "app_url", "")
+    except Exception:
+        redirect_url = ""
+
+    # If settings.py does not currently expose app_url,
+    # read APP_URL directly from the environment.
+    if not redirect_url:
+        redirect_url = os.getenv("APP_URL", "").strip()
+
+    # Local development fallback.
+    if not redirect_url:
+        redirect_url = "http://localhost:8501/"
+
+    return redirect_url.rstrip("/") + "/"
 
 
 def render_login_page() -> None:
@@ -89,8 +128,12 @@ def render_login_page() -> None:
                           style='color: #172033; font-size: 1.08rem;'>forge</span>
                     &nbsp;•&nbsp; HR-India Policy Desk
                 </div>
+
                 <div style='color: #172033; margin: 4px 0 0; font-size: 2.2rem;
-                            font-weight: 700; line-height: 1.2;'>Digital-HR</div>
+                            font-weight: 700; line-height: 1.2;'>
+                    Digital-HR
+                </div>
+
                 <p style='color: #667085; font-size: 0.98rem; margin-top: 6px;
                           margin-bottom: 0; font-weight: 500;'>
                     Ask anything about Coforge HR-India policies
@@ -101,41 +144,107 @@ def render_login_page() -> None:
         )
 
         sp_client = db_manager.get_supabase_client()
-        is_configured = bool(sp_client and settings.supabase_url and settings.supabase_anon_key)
+
+        is_configured = bool(
+            sp_client
+            and settings.supabase_url
+            and settings.supabase_anon_key
+        )
 
         # ── Google Button ────────────────────────────────────────────────────
-        if st.button("🌐 Continue with Google", use_container_width=True, type="primary"):
+        if st.button(
+            "🌐 Continue with Google",
+            use_container_width=True,
+            type="primary",
+        ):
+
             if not is_configured:
+
                 st.error(
-                    "⚠️ Real Google OAuth authentication requires SUPABASE_URL and "
-                    "SUPABASE_ANON_KEY in your .env file with Google Provider enabled "
-                    "in the Supabase Dashboard. Mock logins are disabled."
+                    "⚠️ Real Google OAuth authentication requires "
+                    "SUPABASE_URL and SUPABASE_ANON_KEY in your .env "
+                    "file with Google Provider enabled in the Supabase "
+                    "Dashboard. Mock logins are disabled."
                 )
+
             else:
-                redirect_url = "http://localhost:8501/"
+
+                # IMPORTANT:
+                # Previously this was hardcoded to localhost:
+                #
+                # redirect_url = "http://localhost:8501/"
+                #
+                # That works locally but causes the deployed Streamlit
+                # application to redirect to localhost.
+                #
+                # Now the URL is selected according to the environment.
+
+                redirect_url = _get_oauth_redirect_url()
+
                 try:
-                    oauth_res = sp_client.auth.sign_in_with_oauth({
-                        "provider": "google",
-                        "options": {
-                            "redirect_to": redirect_url,
-                            "query_params": {"prompt": "select_account"},
+
+                    oauth_res = sp_client.auth.sign_in_with_oauth(
+                        {
+                            "provider": "google",
+                            "options": {
+                                "redirect_to": redirect_url,
+                                "query_params": {
+                                    "prompt": "select_account"
+                                },
+                            },
                         }
-                    })
-                    verifier = sp_client.auth._storage.get_item("supabase.auth.token-code-verifier")
-                    if verifier:
-                        st.session_state["pkce_code_verifier"] = verifier
+                    )
+
+                    # ---------------------------------------------------------
+                    # Preserve PKCE verifier
+                    # ---------------------------------------------------------
+
+                    try:
+
+                        verifier = (
+                            sp_client.auth._storage.get_item(
+                                "supabase.auth.token-code-verifier"
+                            )
+                        )
+
+                        if verifier:
+                            st.session_state[
+                                "pkce_code_verifier"
+                            ] = verifier
+
+                    except Exception:
+                        # Keep the existing OAuth flow working even if
+                        # the installed Supabase client does not expose
+                        # its internal storage object.
+                        pass
+
+                    # ---------------------------------------------------------
+                    # Redirect browser to Google
+                    # ---------------------------------------------------------
+
                     st.markdown(
-                        f'<meta http-equiv="refresh" content="0; url={oauth_res.url}">',
+                        f"""
+                        <meta
+                            http-equiv="refresh"
+                            content="0; url={oauth_res.url}"
+                        >
+                        """,
                         unsafe_allow_html=True,
                     )
+
                     st.stop()
+
                 except Exception as exc:
-                    st.error(f"Failed to initiate Google OAuth: {exc}")
+
+                    st.error(
+                        f"Failed to initiate Google OAuth: {exc}"
+                    )
 
         # ── Divider ──────────────────────────────────────────────────────────
         st.markdown(
             """
-            <div style='text-align: center; margin: 15px 0; color: #94A3B8; font-weight: 500;'>
+            <div style='text-align: center; margin: 15px 0;
+                        color: #94A3B8; font-weight: 500;'>
                 ── or ──
             </div>
             """,
@@ -143,9 +252,14 @@ def render_login_page() -> None:
         )
 
         # ── Guest Button ─────────────────────────────────────────────────────
-        if st.button("👤 Continue as Guest", use_container_width=True):
+        if st.button(
+            "👤 Continue as Guest",
+            use_container_width=True,
+        ):
+
             st.session_state.authenticated = True
             st.session_state.is_guest = True
+
             st.session_state.user_profile = {
                 "id": None,
                 "name": "Guest User",
@@ -155,8 +269,11 @@ def render_login_page() -> None:
                 "department": "Temporary Workspace",
                 "auth_method": "Guest Mode",
             }
+
             st.session_state.conversations = {}
             st.session_state.saved_answers = []
             st.session_state.current_view = "chat"
+
             create_new_chat()
+
             st.rerun()
